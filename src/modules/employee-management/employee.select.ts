@@ -1,0 +1,82 @@
+export const employeeSummarySelect = {
+  id: true,
+  employeeNo: true,
+  firstName: true,
+  lastName: true,
+  preferredName: true,
+  workEmail: true,
+  phone: true,
+  jobTitle: true,
+  employmentType: true,
+  status: true,
+  probationStatus: true,
+  probationEndDate: true,
+  joinedAt: true,
+  department: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+    },
+  },
+  reportingManager: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      employeeNo: true,
+    },
+  },
+} as const;
+
+export const employeeDetailSelect = {
+  ...employeeSummarySelect,
+  userId: true,
+  personalEmail: true,
+  address: true,
+  nicNumber: true,
+  passportNumber: true,
+  dateOfBirth: true,
+  probationStartDate: true,
+  confirmedAt: true,
+  separatedAt: true,
+  terminatedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  documents: {
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      fileName: true,
+      mimeType: true,
+      sizeBytes: true,
+      uploadedAt: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  },
+  probationReviews: {
+    select: {
+      id: true,
+      outcome: true,
+      notes: true,
+      reviewDate: true,
+      nextReviewDate: true,
+    },
+    orderBy: { reviewDate: 'desc' },
+  },
+  separationRequests: {
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      reason: true,
+      effectiveDate: true,
+      approvedAt: true,
+      completedAt: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  },
+} as const;

@@ -1,0 +1,117 @@
+# Recruitment & Onboarding — Implementation Walkthrough
+
+## Summary
+
+Implemented a comprehensive **Recruitment & Onboarding** module for the NestJS HR system, spanning **35+ new files** across 5 phases. The system compiles with **zero TypeScript errors**.
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TD
+    subgraph Recruitment Module
+        RC[RequisitionsController] --> RS[RequisitionsService]
+        JPC[JobPostingsController] --> JPS[JobPostingsService]
+        CC[CandidatesController] --> CS[CandidatesService]
+        IC[InterviewsController] --> IS[InterviewsService]
+        OC[OffersController] --> OS[OffersService]
+        JPS --> LI[LinkedInService]
+        IS --> CAL[CalendarSyncService]
+        OS --> OTS[OfferTemplateService]
+        OS --> SIG[SignatureService]
+    end
+
+    subgraph Onboarding Module
+        OCC[ChecklistsController] --> OCS[ChecklistsService]
+        OPC[PortalController] --> OPS[PortalService]
+        DCC[DocumentController] --> DCS[DocumentService]
+    end
+
+    OS -->|offer.accepted| OCS
+    OS -->|Auto-create| EMP[Employee Record]
+```
+
+---
+
+## What Was Built
+
+### Phase 1: Database Schema
+- **17 new enums**: `RequisitionStatus`, `CandidateApplicationStatus`, `InterviewType`, `OfferStatus`, `SignatureStatus`, `OnboardingTaskType`, etc.
+- **18 new models**: `JobRequisition`, `JobPosting`, `JobPostingChannel`, `Candidate`, `CandidateApplication`, `CandidateDocument`, `CandidateNote`, `Interview`, `InterviewFeedback`, `OfferLetter`, `OfferLetterTemplate`, `SignatureRequest`, `RequisitionApproval`, `OnboardingChecklist`, `OnboardingTask`, `OnboardingInstance`, `OnboardingTaskInstance`, `DocumentRequest`
+- Updated existing models: `Company`, `User`, `Employee`, `Department`
+
+### Phase 2: Configuration
+- [recruitment.config.ts](file:///c:/Users/USER/Documents/hr-system/src/config/recruitment.config.ts) — LinkedIn, DocuSign, career page settings
+- [queue.constants.ts](file:///c:/Users/USER/Documents/hr-system/src/queue/queue.constants.ts) — Added `RECRUITMENT` queue
+- [recruitment.processor.ts](file:///c:/Users/USER/Documents/hr-system/src/queue/processors/recruitment.processor.ts) — Bull queue handlers
+
+### Phase 3: Recruitment Module
+
+| Component | File | Key Features |
+|-----------|------|-------------|
+| **Requisitions** | [requisitions.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/requisitions.service.ts) | CRUD, manager→HR approval workflow, audit trail |
+| **Job Postings** | [job-postings.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/job-postings.service.ts) | Create, publish, pause, close; public career page API |
+| **LinkedIn** | [linkedin.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/linkedin.service.ts) | Scaffolded — publishes when credentials configured |
+| **Candidates** | [candidates.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/candidates.service.ts) | Public application, Kanban pipeline board, stage transitions |
+| **Interviews** | [interviews.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/interviews.service.ts) | Schedule, confirm, cancel, feedback scorecards |
+| **Calendar** | [calendar-sync.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/calendar-sync.service.ts) | iCal (.ics) file generation with VALARM reminders |
+| **Offers** | [offers.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/offers.service.ts) | Create→Approve→Send→Accept lifecycle, PDF generation, auto Employee creation |
+| **Templates** | [offer-template.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/offer-template.service.ts) | Template CRUD, `{{variable}}` substitution, PDFKit rendering |
+| **E-Signature** | [signature.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/recruitment/signature.service.ts) | DocuSign scaffold + local click-to-sign with tokens |
+
+### Phase 4: Onboarding Module
+
+| Component | File | Key Features |
+|-----------|------|-------------|
+| **Checklists** | [onboarding-checklists.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/onboarding/onboarding-checklists.service.ts) | Template CRUD, assign to employee, auto-assign on `offer.accepted` |
+| **Portal** | [onboarding-portal.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/onboarding/onboarding-portal.service.ts) | Employee self-service, task completion, progress tracking |
+| **Documents** | [document-collection.service.ts](file:///c:/Users/USER/Documents/hr-system/src/modules/onboarding/document-collection.service.ts) | HR requests docs, employee uploads, approve/reject workflow |
+
+### Phase 5: Integration
+- [app.module.ts](file:///c:/Users/USER/Documents/hr-system/src/app.module.ts) — Wired both modules + config
+
+---
+
+## Key Flows
+
+### 1. Hiring Pipeline
+```
+Manager creates requisition → HR approves → Job posting created → Published to career page + LinkedIn → Candidate applies → Kanban pipeline → Interview scheduled (.ics) → Feedback submitted → Offer created → PDF generated → Sent with e-signature → Candidate accepts → Employee auto-created → Onboarding auto-assigned
+```
+
+### 2. API Endpoints Created
+
+**Recruitment** (~25 endpoints):
+- `POST/GET /v1/requisitions` — CRUD + `POST /:id/approve`, `POST /:id/cancel`
+- `POST/GET /v1/job-postings` — CRUD + `POST /:id/publish|pause|close`
+- `GET /v1/public/jobs` — Public career page (no auth)
+- `POST /v1/public/jobs/:id/apply` — Public application
+- `POST/GET /v1/candidates` — CRUD + `GET /v1/job-postings/:id/pipeline` (Kanban)
+- `POST /v1/applications/:id/move-stage` — Pipeline transitions
+- `POST/GET /v1/interviews` — CRUD + `POST /:id/feedback`, `GET /:id/ics`
+- `POST/GET /v1/offers` — CRUD + `POST /:id/generate-pdf|approve|send|revoke`
+- `GET/POST /v1/public/offers/:token` — Public view/respond
+- `POST /v1/webhooks/docusign` — DocuSign callback
+
+**Onboarding** (~12 endpoints):
+- `POST/GET /v1/onboarding/checklists` — Template CRUD + `POST /:id/assign`
+- `GET /v1/onboarding/my` — Employee self-service
+- `GET /v1/onboarding/instances` — HR management
+- `POST /v1/onboarding/tasks/:id/complete|skip`
+- `POST /v1/onboarding/documents/requests` — HR creates
+- `GET /v1/onboarding/documents/my` — Employee views
+- `POST /v1/onboarding/documents/:id/presign-upload|complete-upload|approve|reject`
+
+---
+
+## Verification
+- ✅ Prisma schema validates successfully
+- ✅ Prisma client generated
+- ✅ TypeScript compiles with **zero errors**
+
+## Remaining Work
+- Run `prisma migrate dev` to apply schema to database
+- Unit tests and e2e tests
+- Wire actual LinkedIn/DocuSign credentials
+- Implement S3 presigned URLs for file uploads
