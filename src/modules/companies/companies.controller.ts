@@ -1,6 +1,15 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
+import { Public } from '../../core/decorators/public.decorator';
 import { Roles } from '../../core/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../core/guards/jwt-auth.guard';
 import { RolesGuard } from '../../core/guards/roles.guard';
@@ -18,6 +27,12 @@ export class CompaniesController {
   @Roles(UserRole.SUPER_ADMIN)
   create(@Body() dto: CreateCompanyDto) {
     return this.companiesService.create(dto);
+  }
+
+  @Public()
+  @Get('lookup')
+  lookup(@Query('name') name: string) {
+    return this.companiesService.lookupByName(name);
   }
 
   @Get(':id')

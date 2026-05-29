@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { EventBusService } from '../../core/events/event-bus.service';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -18,6 +22,29 @@ export class CompaniesService {
 
   async findOne(id: string) {
     const company = await this.prisma.company.findUnique({ where: { id } });
+    if (!company) throw new NotFoundException('Company not found');
+    return company;
+  }
+
+  async lookupByName(name?: string) {
+    const trimmedName = name?.trim();
+    if (!trimmedName) throw new BadRequestException('Company name is required');
+
+    const company = await this.prisma.company.findFirst({
+      where: {
+        name: {
+          equals: trimmedName,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
     if (!company) throw new NotFoundException('Company not found');
     return company;
   }
