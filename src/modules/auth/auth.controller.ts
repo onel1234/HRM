@@ -19,6 +19,7 @@ import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { SignupDto } from './dto/signup.dto';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -32,6 +33,14 @@ export class AuthController {
   login(@Body() dto: LoginDto, @Req() req: Request) {
     const companyId = req.headers['x-company-id'] as string;
     return this.authService.login(dto, companyId, req.ip);
+  }
+
+  @Public()
+  @Post('signup')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a company and first admin user' })
+  signup(@Body() dto: SignupDto, @Req() req: Request) {
+    return this.authService.signup(dto, req.ip);
   }
 
   @Public()

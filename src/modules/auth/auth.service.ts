@@ -1,15 +1,18 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AuditService } from '../../core/audit/audit.service';
 import { EventBusService } from '../../core/events/event-bus.service';
 import { PrismaService } from '../../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { SignupDto } from './dto/signup.dto';
 
 @Injectable()
 export class AuthService {
@@ -64,6 +67,88 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        companyId: user.companyId,
+      },
+      ...tokens,
+    };
+  }
+
+  async signup(dto: SignupDto, ipAddress?: string) {
+    const existing = await this.prisma.user.findFirst({
+      where: { email: dto.email },
+      select: { id: true },
+    });
+
+    if (existing) throw new ConflictException('Email already exists');
+
+    const rounds = this.config.get<number>('app.bcryptRounds') || 12;
+    const passwordHash = await bcrypt.hash(dto.password, rounds);
+
+    const { company, user } = await this.prisma.$transaction(async (tx) => {
+      const company = await tx.company.create({
+        data: {
+          name: dto.companyName,
+          email: dto.companyEmail,
+          phone: dto.phone,
+        },
+      });
+
+      const user = await tx.user.create({
+        data: {
+          companyId: company.id,
+          email: dto.email,
+          passwordHash,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          phone: dto.phone,
+          role: UserRole.COMPANY_ADMIN,
+          status: 'ACTIVE',
+          dataProcessingConsent: true,
+          consentGivenAt: new Date(),
+        },
+      });
+
+      return { company, user };
+    });
+
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      user.role,
+      company.id,
+    );
+    const refreshHash = await bcrypt.hash(tokens.refreshToken, 10);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { refreshTokenHash: refreshHash, lastLoginAt: new Date() },
+    });
+
+    await this.audit.log({
+      companyId: company.id,
+      userId: user.id,
+      action: 'auth.signup',
+      ipAddress,
+    });
+    this.eventBus.emit('company.created', { companyId: company.id });
+    this.eventBus.emit('user.created', {
+      userId: user.id,
+      companyId: company.id,
+      role: user.role,
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        companyId: company.id,
+      },
+      company: {
+        id: company.id,
+        name: company.name,
       },
       ...tokens,
     };

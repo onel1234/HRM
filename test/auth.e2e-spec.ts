@@ -18,19 +18,26 @@ describe('AuthController (e2e)', () => {
   let app: INestApplication;
   const authService = {
     login: jest.fn(),
+    signup: jest.fn(),
   };
 
   beforeEach(async () => {
-    authService.login.mockResolvedValue({
+    const authResponse = {
       user: {
         id: 'user-1',
         email: 'admin@acme.lk',
         firstName: 'Admin',
         lastName: 'User',
         role: 'COMPANY_ADMIN',
+        companyId: 'company-1',
       },
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
+    };
+    authService.login.mockResolvedValue(authResponse);
+    authService.signup.mockResolvedValue({
+      ...authResponse,
+      company: { id: 'company-1', name: 'Acme Lanka' },
     });
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -74,6 +81,43 @@ describe('AuthController (e2e)', () => {
     expect(authService.login).toHaveBeenCalledWith(
       { email: 'admin@acme.lk', password: 'StrongPass123!' },
       'company-1',
+      expect.any(String),
+    );
+  });
+
+  it('POST /api/v1/auth/signup creates a company admin account', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/signup')
+      .send({
+        companyName: 'Acme Lanka',
+        companyEmail: 'hello@acme.lk',
+        firstName: 'Admin',
+        lastName: 'User',
+        email: 'admin@acme.lk',
+        password: 'StrongPass123!',
+      })
+      .expect(201)
+      .expect(
+        ({
+          body,
+        }: {
+          body: { accessToken: string; company: { id: string; name: string } };
+        }) => {
+          expect(body.accessToken).toBe('access-token');
+          expect(body.company).toEqual({ id: 'company-1', name: 'Acme Lanka' });
+        },
+      );
+
+    expect(authService.signup).toHaveBeenCalledWith(
+      {
+        companyName: 'Acme Lanka',
+        companyEmail: 'hello@acme.lk',
+        firstName: 'Admin',
+        lastName: 'User',
+        email: 'admin@acme.lk',
+        password: 'StrongPass123!',
+      },
       expect.any(String),
     );
   });
